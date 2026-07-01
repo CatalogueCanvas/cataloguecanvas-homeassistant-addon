@@ -10,10 +10,13 @@ init: false
 startup: application
 boot: auto
 ports:
-  8000/tcp: 8000
+  8000/tcp: 8081
 ports_description:
-  8000/tcp: Web UI (http://<ha-host>:8000)
+  8000/tcp: Web UI (http://<ha-host>:8081)
+webui: "http://[HOST]:[PORT:8000/tcp]"
 map:
+  - type: addon_config
+    read_only: false
   - type: media
     read_only: false
   - type: share
