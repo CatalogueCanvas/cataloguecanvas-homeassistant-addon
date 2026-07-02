@@ -1,21 +1,25 @@
 # CatalogueCanvas documentation
 
+[Documentation](https://cataloguecanvas.app)    
+
 ## Installation
 
 1. Add this repository to Home Assistant: **Settings → Add-ons → Add-on Store → ⋮ → Repositories**, then paste the repository URL.
 2. Install **CatalogueCanvas** from the store.
-3. Open the **Configuration** tab and set an **Admin password**. Until you do, the app fails closed and nobody can log in.
+3. Open the **Configuration** tab and set an **Admin password**. By default the password is **changeme**.
 4. Start the add-on and open `http://<your-ha-host>:8000`.
 
 ## Why there's no sidebar panel
 
 Ingress (the thing that puts add-ons in the sidebar) works by loading the add-on's UI in an iframe under a path prefix. CatalogueCanvas won't cooperate with either half of that. It sends `X-Frame-Options: DENY` and a `Content-Security-Policy` of `frame-ancestors 'none'`, which block the iframe outright, and its frontend hard-codes absolute URLs with no base path to configure. So the add-on skips Ingress and just serves the app on port 8000.
 
+*You can add `http://<your-ha-host>:8000` in your browser bookmarks.*
+
 ## Configuration options
 
 | Option | Required | Default | Description |
 |--------|----------|---------|-------------|
-| `admin_password` | Yes | *(empty)* | Admin login password. No login is possible until set. |
+| `admin_password` | Yes | *(changme)* | Admin login password. |
 | `admin_username` | No | `admin` | Admin account username. |
 | `site_title` | No | `CatalogueCanvas` | Name shown in the UI and public portfolios. |
 | `site_author` | No | *(empty)* | Author attribution on public portfolios. |
