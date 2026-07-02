@@ -25,7 +25,7 @@ map:
   - type: homeassistant_config
     read_only: true
 options:
-  admin_password: ""
+  admin_password: changeme
   admin_username: admin
   site_title: CatalogueCanvas
   site_author: ""
