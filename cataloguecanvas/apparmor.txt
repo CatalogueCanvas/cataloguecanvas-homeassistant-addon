@@ -1,18 +1,6 @@
 #include <tunables/global>
 
-# AppArmor profile for the CatalogueCanvas add-on.
-#
-# This add-on wraps the upstream python:3.14-alpine image (no s6-overlay, no
-# bashio). It runs as root, executes /run.sh (sh) -> the upstream
-# docker-entrypoint.sh -> `uv run uvicorn`, and persists state to /config.
-# The app uses native libraries (Cairo/Pango/gdk-pixbuf/WeasyPrint) for PDF
-# and image rendering, so the profile grants broad file execution under the
-# system and app trees rather than an allowlist of individual binaries.
-#
-# Development note: if the app misbehaves after enabling this profile, add the
-# `complain` flag to the line below, reproduce, then inspect:
-#   journalctl _TRANSPORT="audit" -g 'apparmor="ALLOWED"'
-# add the missing rules, and remove `complain` to enforce again.
+# AppArmor profile for the CatalogueCanvas add-on (root under s6-overlay -> run.sh -> uvicorn).
 
 profile cataloguecanvas flags=(attach_disconnected,mediate_deleted) {
   #include <abstractions/base>
@@ -20,45 +8,41 @@ profile cataloguecanvas flags=(attach_disconnected,mediate_deleted) {
   #include <abstractions/openssl>
   #include <abstractions/python>
 
-  # Networking (the web UI binds 0.0.0.0:8000 inside the container).
+  # Networking, signals, and capabilities the add-on needs to run as root under s6.
   network inet tcp,
   network inet6 tcp,
-
-  # Signals for clean start/stop by the Supervisor.
   signal (receive) set=(kill,term,int,hup,cont),
-
-  # Capabilities. The add-on runs as root; these cover the upstream entrypoint's
-  # file creation and permission-setting on the session key.
   capability chown,
   capability dac_override,
   capability fowner,
   capability setgid,
   capability setuid,
 
-  # Interpreters and system binaries used by run.sh, the upstream entrypoint,
-  # uv and uvicorn. Broad because the Python venv and native libs live here.
+  # Interpreters, system binaries, and the s6-overlay supervision tree.
   /bin/** ix,
   /usr/bin/** ix,
   /usr/local/bin/** ix,
   /usr/local/sbin/** ix,
   /sbin/** ix,
+  /init ix,
+  /package/** ix,
+  /command/** ix,
+  /etc/s6-overlay/** rix,
+  /run/{s6,s6-rc,service}/** rwix,
 
-  # Application tree: the app, its uv virtualenv (/app/server/.venv), static
-  # assets, and any bytecode/tempfiles it writes at runtime.
+  # Application tree, native libraries, and fonts/certs.
   /app/** rwix,
-
-  # Shared libraries and runtime data for Cairo/Pango/gdk-pixbuf/fonts/certs.
   /usr/lib/** mr,
   /usr/local/lib/** mr,
   /usr/share/** r,
   /etc/** r,
 
   # Persistent and mapped Home Assistant volumes.
-  /config/** rw,     # addon_config: app state (secret.key, DB, uploads)
-  /data/** rw,       # Supervisor options.json and add-on scratch
-  /share/** rw,      # share map (libraries / user media)
-  /media/** rw,      # media map (libraries / served media)
-  /homeassistant/** r,  # homeassistant_config map (read-only)
+  /config/** rw,
+  /data/** rw,
+  /share/** rw,
+  /media/** rw,
+  /homeassistant/** r,
 
   # Working/temp/proc/dev that the interpreter and app need.
   /tmp/** rwk,
@@ -69,7 +53,6 @@ profile cataloguecanvas flags=(attach_disconnected,mediate_deleted) {
   /dev/urandom r,
   /dev/null rw,
 
-  # Deny access to sensitive host areas.
   deny /proc/kcore rwklx,
   deny /proc/sysrq-trigger rwklx,
   deny /sys/firmware/** rwklx,
