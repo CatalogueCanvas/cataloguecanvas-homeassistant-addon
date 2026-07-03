@@ -12,6 +12,33 @@ log() {
     echo "[cataloguecanvas] $*"
 }
 
+banner() {
+    local os_name kernel
+
+    if [[ -r /etc/os-release ]]; then
+        os_name="$(. /etc/os-release 2> /dev/null && printf '%s' "${PRETTY_NAME:-unknown}")"
+    else
+        os_name="unknown"
+    fi
+    kernel="$(uname -srm 2> /dev/null || echo unknown)"
+
+    cat << 'EOF'
+ _____       _        _                          _____
+/  __ \     | |      | |                        /  __ \
+| /  \/ __ _| |_ __ _| | ___   __ _ _   _  ___  | /  \/ __ _ _ ____   ____ _ ___
+| |    / _` | __/ _` | |/ _ \ / _` | | | |/ _ \ | |    / _` | '_ \ \ / / _` / __|
+| \__/\ (_| | || (_| | | (_) | (_| | |_| |  __/ | \__/\ (_| | | | \ V / (_| \__ \
+ \____/\__,_|\__\__,_|_|\___/ \__, |\__,_|\___|  \____/\__,_|_| |_|\_/ \__,_|___/
+                               __/ |
+                              |___/
+EOF
+    log "System status:"
+    log "  add-on version : ${CC_ADDON_VERSION:-unknown}"
+    log "  architecture   : ${CC_ADDON_ARCH:-$(uname -m)}"
+    log "  os             : ${os_name}"
+    log "  kernel         : ${kernel}"
+}
+
 die() {
     echo "[cataloguecanvas] ERROR: $*" >&2
     exit 1
@@ -104,6 +131,8 @@ chown_recursive_if_writable() {
     log "Skipping ownership update for ${path} (read-only mapping)"
 }
 
+banner
+
 [[ -f "$OPTIONS_JSON" ]] || die "Missing options file at ${OPTIONS_JSON}"
 
 PUID="$(read_opt puid)"
@@ -165,4 +194,4 @@ log "  cc_data_dir=${CC_DATA_DIR}"
 log "  cc_db_path=${CC_DB_PATH}"
 
 exec /usr/local/bin/docker-entrypoint.sh \
-    uv run uvicorn cataloguecanvas.main:app --host 0.0.0.0 --port 8000
+    uv run uvicorn cataloguecanvas.main:app --host :: --port 8000

@@ -2,7 +2,12 @@ ARG BUILD_FROM
 FROM ${BUILD_FROM}
 
 ARG BUILD_ARCH
+ARG BUILD_VERSION
 ARG S6_OVERLAY_VERSION=3.2.0.2
+
+# Bake add-on metadata into the image so run.sh can print it at startup.
+ENV CC_ADDON_VERSION=${BUILD_VERSION} \
+    CC_ADDON_ARCH=${BUILD_ARCH}
 
 # s6-overlay supervision wrapper; runs as root since Supervisor mounts /data root-owned.
 USER root
