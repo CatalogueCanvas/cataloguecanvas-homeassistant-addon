@@ -1,5 +1,5 @@
 name: CatalogueCanvas
-version: "0.1.0"
+version: "0.1.1"
 slug: cataloguecanvas
 image: ghcr.io/cataloguecanvas/{arch}-cataloguecanvas-homeassistant
 description: Organise your artwork, designs and creative files into catalogues and portfolios
@@ -9,7 +9,6 @@ arch:
   - aarch64
 startup: services
 init: false
-apparmor: false
 ports:
   8000/tcp: 8081
 ports_description:
