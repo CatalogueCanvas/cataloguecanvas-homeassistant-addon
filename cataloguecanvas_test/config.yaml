@@ -1,5 +1,5 @@
 name: CatalogueCanvas Test
-version: "0.1.0"
+version: "0.1.0-test000"
 slug: cataloguecanvas_test
 image: ghcr.io/cataloguecanvas/{arch}-cataloguecanvas-test-homeassistant
 description: Test build of the CatalogueCanvas add-on
