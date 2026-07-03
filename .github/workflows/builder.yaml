@@ -7,91 +7,94 @@ on:
       - main
     paths:
       - "cataloguecanvas/**"
+      - "cataloguecanvas_test/**"
       - ".github/workflows/builder.yaml"
+    tags:
+      - "cataloguecanvas_test@*"
   pull_request:
     branches:
       - main
     paths:
       - "cataloguecanvas/**"
+      - "cataloguecanvas_test/**"
       - ".github/workflows/builder.yaml"
   workflow_dispatch:
-
-env:
-  ARCHITECTURES: '["amd64", "aarch64"]'
-  IMAGE_NAME: cataloguecanvas-homeassistant
-  REGISTRY_PREFIX: ghcr.io/cataloguecanvas
-  BUILD_CONTEXT: ./cataloguecanvas
+    inputs:
+      addon:
+        description: "Add-on to build"
+        required: false
+        default: all
+        type: choice
+        options:
+          - all
+          - cataloguecanvas
+          - cataloguecanvas_test
 
 permissions:
   contents: read
 
 jobs:
-  init:
-    name: Initialize build
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.matrix.outputs.matrix }}
-      version: ${{ steps.version.outputs.version }}
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Get add-on version
-        id: version
-        run: echo "version=$(yq -r '.version' cataloguecanvas/config.yaml)" >> "$GITHUB_OUTPUT"
-
-      - name: Get build matrix
-        id: matrix
-        uses: home-assistant/builder/actions/prepare-multi-arch-matrix@2026.06.0
-        with:
-          architectures: ${{ env.ARCHITECTURES }}
-          image-name: ${{ env.IMAGE_NAME }}
-          registry-prefix: ${{ env.REGISTRY_PREFIX }}
-
   build:
-    name: Build ${{ matrix.arch }} image
-    needs: init
-    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.addon }} / ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
-      id-token: write
       packages: write
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.init.outputs.matrix) }}
+      matrix:
+        addon:
+          - cataloguecanvas
+          - cataloguecanvas_test
+        arch:
+          - amd64
+          - aarch64
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v5
 
-      - name: Build ${{ matrix.arch }} image
+      # Build only the relevant add-on for manual dispatch (dropdown) or a
+      # cataloguecanvas_test@* tag push; otherwise build every matrix add-on.
+      - name: Decide whether to build ${{ matrix.addon }}
+        id: gate
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] \
+             && [ "${{ inputs.addon }}" != "all" ] \
+             && [ "${{ inputs.addon }}" != "${{ matrix.addon }}" ]; then
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          elif [ "${{ startsWith(github.ref, 'refs/tags/cataloguecanvas_test@') }}" = "true" ] \
+             && [ "${{ matrix.addon }}" != "cataloguecanvas_test" ]; then
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Read add-on metadata
+        id: meta
+        if: steps.gate.outputs.build == 'true'
+        run: |
+          VERSION=$(yq -r '.version' "${{ matrix.addon }}/config.yaml")
+          IMAGE=$(yq -r '.image' "${{ matrix.addon }}/config.yaml" | sed 's/{arch}/${{ matrix.arch }}/g')
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+
+      - name: Build ${{ matrix.addon }} (${{ matrix.arch }})
+        if: steps.gate.outputs.build == 'true'
         uses: home-assistant/builder/actions/build-image@2026.06.0
         with:
           arch: ${{ matrix.arch }}
-          context: ${{ env.BUILD_CONTEXT }}
+          context: ${{ matrix.addon }}
+          image: ${{ steps.meta.outputs.image }}
+          image-tags: |
+            ${{ steps.meta.outputs.version }}
+            latest
+          version: ${{ steps.meta.outputs.version }}
           build-args: |
             BUILD_FROM=ghcr.io/cataloguecanvas/cataloguecanvas:latest
-          container-registry-password: ${{ secrets.GITHUB_TOKEN }}
-          image: ${{ matrix.image }}
-          image-tags: |
-            ${{ needs.init.outputs.version }}
-            latest
+          cosign: "false"
           push: ${{ github.event_name != 'pull_request' }}
-          version: ${{ needs.init.outputs.version }}
-
-  manifest:
-    name: Publish multi-arch manifest
-    needs: [init, build]
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      packages: write
-    steps:
-      - name: Publish multi-arch manifest
-        uses: home-assistant/builder/actions/publish-multi-arch-manifest@2026.06.0
-        with:
-          architectures: ${{ env.ARCHITECTURES }}
           container-registry-password: ${{ secrets.GITHUB_TOKEN }}
-          image-name: ${{ env.IMAGE_NAME }}
-          registry-prefix: ${{ env.REGISTRY_PREFIX }}
-          image-tags: |
-            ${{ needs.init.outputs.version }}
-            latest
