@@ -1,0 +1,6 @@
+build_from:
+  amd64: ghcr.io/cataloguecanvas/cataloguecanvas:latest
+  aarch64: ghcr.io/cataloguecanvas/cataloguecanvas:latest
+labels:
+  org.opencontainers.image.title: CatalogueCanvas
+  org.opencontainers.image.source: https://github.com/CatalogueCanvas/CatalogueCanvas
