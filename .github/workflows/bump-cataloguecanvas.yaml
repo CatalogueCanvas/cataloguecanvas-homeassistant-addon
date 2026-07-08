@@ -1,0 +1,65 @@
+name: Bump CatalogueCanvas version
+
+# yamllint disable-line rule:truthy
+on:
+  repository_dispatch:
+    types: [cc-release]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "CatalogueCanvas version tag"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  bump:
+    name: Bump cataloguecanvas/config.yaml
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Compute new add-on version
+        id: version
+        run: |
+          raw_version="${{ github.event.client_payload.version || inputs.version }}"
+          app_version="${raw_version#v}"
+
+          current_version=$(yq -r '.version' cataloguecanvas/config.yaml)
+          current_app_version="${current_version%-*}"
+
+          if [ "${current_app_version}" = "${app_version}" ]; then
+            echo "config.yaml already tracks app version ${app_version}, skipping"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          new_version="${app_version}-1"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "app_version=${app_version}" >> "$GITHUB_OUTPUT"
+          echo "new_version=${new_version}" >> "$GITHUB_OUTPUT"
+
+      - name: Update config.yaml
+        if: steps.version.outputs.changed == 'true'
+        run: |
+          yq -i '.version = "${{ steps.version.outputs.new_version }}"' cataloguecanvas/config.yaml
+
+      - name: Open pull request
+        if: steps.version.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "Bump CatalogueCanvas to v${{ steps.version.outputs.app_version }}"
+          title: "Bump CatalogueCanvas to v${{ steps.version.outputs.app_version }}"
+          body: |
+            CatalogueCanvas released `v${{ steps.version.outputs.app_version }}`.
+
+            This bumps `cataloguecanvas/config.yaml` to
+            `${{ steps.version.outputs.new_version }}`, resetting the add-on
+            build counter to 1 for the new app version.
+          branch: bump-cc-v${{ steps.version.outputs.app_version }}
+          add-paths: cataloguecanvas/config.yaml
