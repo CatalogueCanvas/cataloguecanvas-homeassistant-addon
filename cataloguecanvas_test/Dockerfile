@@ -1,6 +1,67 @@
-ARG BUILD_FROM
-FROM ${BUILD_FROM}
+# Self-contained add-on build. The CatalogueCanvas application source lives in
+# the CatalogueCanvas/CatalogueCanvas repo; it is cloned at build time (pinned by
+# CC_REF) and built here, so this image no longer depends on the prebuilt
+# ghcr.io/cataloguecanvas/cataloguecanvas base image.
 
+# Repo + ref to fetch the application source from. Override CC_REF at build time
+# to pin a release tag (e.g. --build-arg CC_REF=0.1.1).
+ARG CC_REPO=https://github.com/CatalogueCanvas/CatalogueCanvas.git
+ARG CC_REF=main
+
+# --- Stage 0: fetch application source ---
+FROM alpine:3.20 AS src
+ARG CC_REPO
+ARG CC_REF
+RUN apk add --no-cache git \
+    && git clone --depth 1 --branch "${CC_REF}" "${CC_REPO}" /src \
+    || git clone "${CC_REPO}" /src && git -C /src checkout "${CC_REF}"
+
+# --- Stage 1: build the React SPA (mirrors upstream Dockerfile) ---
+FROM node:22-slim AS web-build
+WORKDIR /app/web
+COPY --from=src /src/web/package.json /src/web/package-lock.json ./
+RUN npm ci
+COPY --from=src /src/web/ ./
+RUN npm run build
+
+# --- Stage 2: Python runtime (mirrors upstream Dockerfile) ---
+FROM python:3.14-alpine AS runtime
+
+RUN apk add --no-cache \
+    cairo \
+    pango \
+    gdk-pixbuf \
+    shared-mime-info
+
+RUN apk add --no-cache --virtual .build-deps \
+    gcc \
+    musl-dev \
+    cairo-dev \
+    pango-dev \
+    gdk-pixbuf-dev \
+    libffi-dev
+
+# uv, copied from its hash-pinned official image (musl static binary, Alpine-compatible).
+COPY --from=ghcr.io/astral-sh/uv:0.11.26 /uv /uvx /usr/local/bin/
+
+WORKDIR /app
+
+COPY --from=src /src/server/pyproject.toml /src/server/uv.lock /app/server/
+COPY --from=src /src/server/src /app/server/src
+RUN cd server && uv sync --frozen --no-dev \
+    && apk del .build-deps \
+    && pip cache purge 2>/dev/null; true
+
+COPY --from=web-build /app/web/dist /app/web/dist
+
+COPY --from=src /src/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+ENV CC_DATA_DIR=/data \
+    CC_STATIC_DIR=/app/web/dist \
+    PATH="/app/server/.venv/bin:${PATH}"
+
+# --- HA add-on / s6-overlay wrapper layered on top of the app runtime ---
 ARG BUILD_ARCH
 ARG BUILD_VERSION
 ARG S6_OVERLAY_VERSION=3.2.0.2
@@ -12,18 +73,8 @@ ENV CC_ADDON_VERSION=${BUILD_VERSION} \
 # s6-overlay supervision wrapper; runs as root since Supervisor mounts /data root-owned.
 USER root
 
-# hadolint ignore=DL3008,DL3018
-RUN set -eux; \
-    if command -v apk >/dev/null 2>&1; then \
-      apk add --no-cache bash coreutils jq openssl ca-certificates xz curl; \
-    elif command -v apt-get >/dev/null 2>&1; then \
-      apt-get update; \
-      apt-get install -y --no-install-recommends bash coreutils jq openssl ca-certificates xz-utils curl; \
-      rm -rf /var/lib/apt/lists/*; \
-    else \
-      echo "Unsupported base image: missing apk/apt-get"; \
-      exit 1; \
-    fi
+# hadolint ignore=DL3018
+RUN apk add --no-cache bash coreutils jq openssl ca-certificates xz curl
 
 # Install s6-overlay, mapping BUILD_ARCH to the s6-overlay release architecture.
 RUN set -eux; \
@@ -50,7 +101,6 @@ RUN chmod +x /run.sh \
 
 WORKDIR /app/server
 
-# USER must be last so it wins over the upstream base image's `USER appuser`.
 USER root
 ENTRYPOINT ["/init"]
 CMD []

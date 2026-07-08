@@ -2,6 +2,11 @@
 
 All notable changes to the CatalogueCanvas Home Assistant add-on are documented here.
 
+## 0.1.1
+
+### Added
+- Custom AppArmor profile (`apparmor.txt`) confining the add-on to the file, network, and capability set it actually uses; replaces the previous `apparmor: false` unconfined mode. Validated via the `cataloguecanvas_test` add-on.
+
 ## 0.1.0
 
 ### Added
