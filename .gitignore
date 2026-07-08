@@ -19,3 +19,4 @@ Thumbs.db
 !.env.example
 release-test-app.log
 release-test-app.sh
+sync-test-app.sh
