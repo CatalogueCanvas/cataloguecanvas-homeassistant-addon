@@ -18,6 +18,8 @@ on:
       - "cataloguecanvas/**"
       - "cataloguecanvas_test/**"
       - ".github/workflows/builder.yaml"
+  repository_dispatch:
+    types: [cc-release]
   workflow_dispatch:
     inputs:
       addon:
