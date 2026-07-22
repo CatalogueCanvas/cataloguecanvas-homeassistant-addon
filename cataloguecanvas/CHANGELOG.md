@@ -2,6 +2,11 @@
 
 All notable changes to the CatalogueCanvas Home Assistant add-on are documented here.
 
+## 0.1.6-2
+
+### Fixed
+- Image build now pins the upstream CatalogueCanvas source to the tracked release tag (`CC_REF`) instead of floating on `main`, so the in-app footer version matches the add-on's tracked app version instead of drifting to whatever commit was on `main` at build time.
+
 ## 0.1.6-1
 
 Tracks upstream CatalogueCanvas [v0.1.6](https://github.com/CatalogueCanvas/CatalogueCanvas/blob/v0.1.6/CHANGELOG.md).
