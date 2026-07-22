@@ -20,3 +20,6 @@ Thumbs.db
 release-test-app.log
 release-test-app.sh
 sync-test-app.sh
+
+# Local
+_dev/
