@@ -2,9 +2,12 @@
 
 <img src="cataloguecanvas/logo.png" align="right" width=150/>
 
+[![Builder](https://github.com/CatalogueCanvas/cataloguecanvas-homeassistant-addon/actions/workflows/builder.yaml/badge.svg)](https://github.com/CatalogueCanvas/cataloguecanvas-homeassistant-addon/actions/workflows/builder.yaml)
 [![Version](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2FCatalogueCanvas%2Fcataloguecanvas-homeassistant-addon%2Fmain%2Fcataloguecanvas%2Fconfig.yaml&query=%24.version&label=version)](https://github.com/CatalogueCanvas/cataloguecanvas-homeassistant-addon)
+[![Last Commit](https://img.shields.io/github/last-commit/CatalogueCanvas/cataloguecanvas-homeassistant-addon)](https://github.com/CatalogueCanvas/cataloguecanvas-homeassistant-addon/commits/main)
 [![License](https://img.shields.io/github/license/CatalogueCanvas/cataloguecanvas-homeassistant-addon)](LICENSE)
-[![GitHub Issues](https://img.shields.io/github/issues/CatalogueCanvas/cataloguecanvas-homeassistant-addon)](https://github.com/CatalogueCanvas/cataloguecanvas-homeassistant-addon/issues)
+
+
 
 A Home Assistant add-on that runs [CatalogueCanvas](https://github.com/CatalogueCanvas/CatalogueCanvas), a self-hosted manager for your creative files (artwork, generative code, design assets) organised into catalogues and portfolios.
 
