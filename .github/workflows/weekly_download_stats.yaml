@@ -1,0 +1,106 @@
+name: Weekly Download Stats
+
+# yamllint disable-line rule:truthy
+on:
+  schedule:
+    - cron: "0 6 * * 6"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  download-stats:
+    name: Refresh add-on download plot
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.BUMP_PAT }}
+
+      # Into the workspace, not RUNNER_TEMP: the render runs in a container
+      # that only has the workspace mounted. Gitignored so the CC BY-NC font
+      # is never committed into this MIT repo.
+      - name: Download xkcd font
+        run: curl -sSfL https://toledoem.github.io/img/xkcd.ttf -o .github/stats/xkcd.ttf
+
+      # No token needed: the packages are public and the counts are scraped
+      # from their public HTML pages, not the packages API.
+      - name: Collect download counts
+        run: bash .github/scripts/fetch_download_stats.sh
+
+      # Only the render is containerised — the scrape and PR steps need gh,
+      # perl and git, which rocker/r-ver does not ship.
+      - name: Render plot
+        run: |
+          docker run --rm \
+            -v "$PWD:/work" -w /work \
+            -e HOME=/tmp \
+            rocker/r-ver:4.6.1 \
+            bash -c '
+              install2.r --error --skipinstalled xkcd showtext &&
+              mkdir -p "$HOME/.fonts" &&
+              cp .github/stats/xkcd.ttf "$HOME/.fonts/" &&
+              Rscript -e "library(extrafont);
+                          font_import(paths=file.path(Sys.getenv(\"HOME\"), \".fonts\"),
+                                      pattern=\"[X/x]kcd\", prompt=FALSE);
+                          loadfonts(quiet=TRUE)" &&
+              Rscript .github/scripts/plot_download_stats.R \
+                .github/stats/downloads.csv \
+                .github/stats/downloads.png \
+                .github/stats/xkcd.ttf
+            '
+
+      # The container writes as root; without this the later git add fails.
+      - name: Fix ownership
+        run: sudo chown -R "$(id -u):$(id -g)" .github/stats/
+
+      - name: Open stats PR if changed
+        env:
+          GH_TOKEN: ${{ secrets.BUMP_PAT }}
+        run: |
+          if [ -z "$(git status --porcelain .github/stats/)" ]; then
+            echo "download stats unchanged, nothing to do"
+            exit 0
+          fi
+
+          BRANCH="bot/update-stats"
+
+          # If a stats PR is already open, add this run's change on top of it
+          # instead of opening a second one.
+          EXISTING_PR=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number' || true)
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if [ -n "$EXISTING_PR" ]; then
+            git stash push -- .github/stats/
+            git fetch origin "$BRANCH"
+            git checkout -B "$BRANCH" "origin/$BRANCH"
+            git checkout stash@{0} -- .github/stats/
+            git stash drop
+            if [ -z "$(git status --porcelain .github/stats/)" ]; then
+              echo "stats match existing PR #$EXISTING_PR, nothing to add"
+              exit 0
+            fi
+            git add .github/stats/
+            git commit -m "bot: update download stats"
+            git push origin "$BRANCH"
+            echo "Updated existing PR #$EXISTING_PR"
+            exit 0
+          fi
+
+          git checkout -b "$BRANCH"
+          git add .github/stats/
+          git commit -m "bot: update download stats"
+          git push --force origin "$BRANCH"
+
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "bot: update download stats" \
+            --body "Refreshes the add-on download plot in README.md from the GHCR package pull counts."
